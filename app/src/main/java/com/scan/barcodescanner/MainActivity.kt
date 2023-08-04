@@ -14,10 +14,10 @@ import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import com.google.mlkit.vision.barcode.Barcode
 import com.google.mlkit.vision.barcode.BarcodeScanner
 import com.google.mlkit.vision.barcode.BarcodeScannerOptions
 import com.google.mlkit.vision.barcode.BarcodeScanning
+import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.common.InputImage
 import com.scan.barcodescanner.databinding.ActivityMainBinding
 import java.util.concurrent.Executors
@@ -115,11 +115,10 @@ class MainActivity : AppCompatActivity() {
 
             // define the actual functionality of our analysis use case
             analysisUseCase.setAnalyzer(
-                Executors.newSingleThreadExecutor(),
-                { imageProxy ->
-                    processImageProxy(scanner, imageProxy)
-                }
-            )
+                Executors.newSingleThreadExecutor()
+            ) { imageProxy ->
+                processImageProxy(scanner, imageProxy)
+            }
 
             // configure to use the back camera
             val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
