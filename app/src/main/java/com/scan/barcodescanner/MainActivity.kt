@@ -6,6 +6,7 @@ import android.os.Bundle
 import android.util.Log
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ExperimentalGetImage
 import androidx.camera.core.ImageAnalysis
@@ -17,6 +18,7 @@ import androidx.core.content.ContextCompat
 import com.google.mlkit.vision.barcode.BarcodeScanner
 import com.google.mlkit.vision.barcode.BarcodeScannerOptions
 import com.google.mlkit.vision.barcode.BarcodeScanning
+import com.google.mlkit.vision.barcode.ZoomSuggestionOptions
 import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.common.InputImage
 import com.scan.barcodescanner.databinding.ActivityMainBinding
@@ -28,6 +30,7 @@ private const val CAMERA_PERMISSION_REQUEST_CODE = 1
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
+    private var camera: Camera? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -90,24 +93,7 @@ class MainActivity : AppCompatActivity() {
                 }
 
             // configure our MLKit BarcodeScanning client
-
-            /* passing in our desired barcode formats - MLKit supports additional formats outside of the
-            ones listed here, and you may not need to offer support for all of these. You should only
-            specify the ones you need */
-            val options = BarcodeScannerOptions.Builder().setBarcodeFormats(
-                Barcode.FORMAT_CODE_128,
-                Barcode.FORMAT_CODE_39,
-                Barcode.FORMAT_CODE_93,
-                Barcode.FORMAT_EAN_8,
-                Barcode.FORMAT_EAN_13,
-                Barcode.FORMAT_QR_CODE,
-                Barcode.FORMAT_UPC_A,
-                Barcode.FORMAT_UPC_E,
-                Barcode.FORMAT_PDF417
-            ).build()
-
-            // getClient() creates a new instance of the MLKit barcode scanner with the specified options
-            val scanner = BarcodeScanning.getClient(options)
+            val scanner = createBarcodeScanner()
 
             // setting up the analysis use case
             val analysisUseCase = ImageAnalysis.Builder()
@@ -124,7 +110,7 @@ class MainActivity : AppCompatActivity() {
             val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
 
             try {
-                cameraProvider.bindToLifecycle(
+                camera = cameraProvider.bindToLifecycle(
                     this,
                     cameraSelector,
                     previewUseCase,
@@ -138,6 +124,37 @@ class MainActivity : AppCompatActivity() {
                 Log.e(TAG, illegalArgumentException.message.orEmpty())
             }
         }, ContextCompat.getMainExecutor(this))
+    }
+
+    private fun createBarcodeScanner(): BarcodeScanner {
+        /* passing in our desired barcode formats - MLKit supports additional formats outside of the
+            ones listed here, and you may not need to offer support for all of these. You should only
+            specify the ones you need */
+
+        val options = BarcodeScannerOptions.Builder()
+            .setBarcodeFormats(
+                Barcode.FORMAT_QR_CODE,
+                Barcode.FORMAT_AZTEC,
+            )
+            .enableAllPotentialBarcodes()
+            .setZoomSuggestionOptions(
+                ZoomSuggestionOptions.Builder { zoomLevel: Float ->
+                    setZoom(zoomLevel)
+                }
+                    .build()
+            ) // Optional
+            .build()
+
+        // getClient() creates a new instance of the MLKit barcode scanner with the specified options
+        return BarcodeScanning.getClient(options)
+    }
+
+    private fun setZoom(zoomRatio: Float): Boolean {
+        return if (camera == null) false
+        else {
+            camera?.cameraControl?.setZoomRatio(zoomRatio)
+            true
+        }
     }
 
     private fun processImageProxy(
@@ -156,10 +173,11 @@ class MainActivity : AppCompatActivity() {
                 .addOnSuccessListener { barcodeList ->
                     val barcode = barcodeList.getOrNull(0)
 
-                    // `rawValue` is the decoded value of the barcode
-                    barcode?.rawValue?.let { value ->
-                        binding.bottomText.text =
-                            getString(R.string.barcode_value, value)
+                    when (barcode?.valueType) {
+                        Barcode.TYPE_URL -> binding.bottomText.text =
+                            barcode.url?.url // can open browser
+                        else -> binding.bottomText.text =
+                            barcode?.rawValue // `rawValue` is the decoded value of the barcode
                     }
                 }
                 .addOnFailureListener {
