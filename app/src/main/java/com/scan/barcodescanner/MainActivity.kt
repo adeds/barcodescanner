@@ -12,6 +12,7 @@ import androidx.camera.core.ExperimentalGetImage
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
+import androidx.camera.core.TorchState
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -116,6 +117,10 @@ class MainActivity : AppCompatActivity() {
                     previewUseCase,
                     analysisUseCase
                 )
+
+                camera?.cameraInfo?.torchState?.observe(this) { torchState ->
+                    handleTorchState(camera, torchState)
+                }
             } catch (illegalStateException: IllegalStateException) {
                 // If the use case has already been bound to another lifecycle or method is not called on main thread.
                 Log.e(TAG, illegalStateException.message.orEmpty())
@@ -194,6 +199,27 @@ class MainActivity : AppCompatActivity() {
                     imageProxy.image?.close()
                     imageProxy.close()
                 }
+        }
+    }
+
+    private fun handleTorchState(camera: Camera?, torchState: Int) {
+        binding.textTorch.text = torchState.toTorchStateString()
+        binding.textTorch.setOnClickListener {
+            camera?.cameraControl?.enableTorch(torchState != TorchState.ON)
+        }
+    }
+
+    private fun Int.toTorchStateString(): String {
+        return when (this) {
+            TorchState.ON -> {
+                "torch on"
+            }
+            TorchState.OFF -> {
+                "torch off"
+            }
+            else -> {
+                "torch unavailable"
+            }
         }
     }
 
